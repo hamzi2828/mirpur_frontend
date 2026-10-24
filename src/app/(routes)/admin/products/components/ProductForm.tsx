@@ -476,6 +476,18 @@ export default function ProductForm({
       ? `${nameInitials || "P"}-${packaging.shortCode}`
       : form.sku || "";
 
+  // Who sees this product. Branch staff: always their own branch only (set by
+  // the server). Super admin: "" = every branch (shared) or one branch only.
+  const [ownerBranchId, setOwnerBranchId] = useState<string>(() => {
+    const raw = (initialData as { ownerBranch?: unknown } | undefined)?.ownerBranch;
+    if (!raw) return "";
+    if (typeof raw === "object" && raw !== null && "_id" in raw) return String((raw as { _id: unknown })._id);
+    return String(raw);
+  });
+  const ownerBranchName = ownerBranchId
+    ? branchOptions.find((b) => b.id === ownerBranchId)?.name || "One branch"
+    : "";
+
   const lockedBranchName = !access.isSuperAdmin
     ? access.branch?.name || access.currentBranch?.name || "Your branch"
     : null;
@@ -920,6 +932,10 @@ export default function ProductForm({
       // Super admin creating a product: stock goes to the branch picked in the form
       if (mode === "create" && access.isSuperAdmin && stockBranchId) {
         formData.append("stockBranchId", stockBranchId);
+      }
+      // Super admin: shared ("") or one branch only. Ignored by the server for staff.
+      if (access.isSuperAdmin) {
+        formData.append("ownerBranch", ownerBranchId);
       }
       formData.append("stock", String(form.stock ?? 0));
       formData.append("status", form.status);
@@ -1601,6 +1617,42 @@ export default function ProductForm({
                     />
                   )}
                   <p className="mt-1 text-xs text-gray-500">The stock you enter goes to this branch</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Who can see this product</label>
+                  {access.isSuperAdmin ? (
+                    <select
+                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                      value={ownerBranchId}
+                      onChange={(e) => setOwnerBranchId(e.target.value)}
+                    >
+                      <option value="">All branches</option>
+                      {branchOptions.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {(b.name || b.code || "Branch") + " only"}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      readOnly
+                      className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
+                      value={
+                        mode === "create" || ownerBranchId
+                          ? `${lockedBranchName || "Your branch"} only`
+                          : "All branches"
+                      }
+                    />
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {access.isSuperAdmin
+                      ? ownerBranchId
+                        ? `Only ${ownerBranchName} and you can see it`
+                        : "Every branch can see and sell it"
+                      : "Products you add are only seen by your branch"}
+                  </p>
                 </div>
 
                 {!isVariant && (

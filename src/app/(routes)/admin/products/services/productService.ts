@@ -97,6 +97,8 @@ export interface ProductDTO {
   batches?: ProductBatchDTO[];
   piecesPerBox?: number;
   totalStock?: number;
+  // Branch that owns the product (only that branch sees it); null = shared.
+  ownerBranch?: string | null;
 }
 
 export interface ProductUI {
@@ -141,6 +143,8 @@ export interface ProductUI {
   batches?: ProductBatchDTO[];
   piecesPerBox?: number;
   totalStock?: number;
+  // Branch that owns the product (only that branch sees it); null = shared.
+  ownerBranch?: string | null;
 }
 
 function mapToUI(dto: ProductDTO): ProductUI {
@@ -209,6 +213,7 @@ function mapToUI(dto: ProductDTO): ProductUI {
     batches: dto.batches ?? [],
     piecesPerBox: dto.piecesPerBox,
     totalStock: dto.totalStock,
+    ownerBranch: dto.ownerBranch ?? null,
   };
 }
 

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Edit2, Trash2, Star, Layers, Package, AlertTriangle, ChevronLeft, ChevronRight, Tag, Copy, Eye, X, Printer, PackagePlus, Barcode, Loader2 } from "lucide-react";
 import { Product } from "../AllProducts";
 import { useCurrency } from "@/context/CurrencyContext";
+import { useAccess } from "@/context/AccessContext";
 import type { CodeSummary } from "../../services/labelService";
 
 interface ProductCardProps {
@@ -43,6 +44,12 @@ export default function ProductCard({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showStockModal, setShowStockModal] = useState(false);
   const { formatPrice } = useCurrency();
+  const access = useAccess();
+  const ownerBranchLabel = product.ownerBranch
+    ? (access.branches || []).find((b) => b.id === String(product.ownerBranch))?.name ||
+      access.branch?.name ||
+      "Branch"
+    : "";
   const isToggling = togglingStatus.has(product.id);
   const isCopying = copyingProduct.has(product.id);
   const isDeleting = deletingProduct.has(product.id);
@@ -165,6 +172,14 @@ export default function ProductCard({
       {/* Product Info */}
       <div className="p-1.5">
         <h3 className="text-[10px] font-medium text-gray-900 truncate" title={product.name}>{product.name}</h3>
+        {ownerBranchLabel && (
+          <span
+            className="inline-block mt-0.5 px-1 py-px rounded bg-amber-50 text-amber-700 border border-amber-200 text-[8px] font-medium"
+            title="Only this branch (and the super admin) can see this product"
+          >
+            {ownerBranchLabel} only
+          </span>
+        )}
         <div className="flex items-center justify-between mt-0.5">
           <span className="text-[8px] text-gray-500 truncate max-w-[60%]">{product.category}</span>
           <span className="text-[8px] text-gray-400">{product.stock}</span>

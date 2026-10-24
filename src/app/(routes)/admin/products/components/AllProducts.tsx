@@ -40,6 +40,8 @@ export interface Product {
   stock: number;
   status: "published" | "draft" | "out_of_stock";
   featured?: boolean;
+  // Branch that owns the product (only that branch sees it); null = all branches.
+  ownerBranch?: string | null;
   // Deprecated: kept for backward compatibility
   image?: string;
   // New fields
