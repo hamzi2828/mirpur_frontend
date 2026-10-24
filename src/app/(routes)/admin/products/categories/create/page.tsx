@@ -2,6 +2,7 @@
 
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { FiChevronDown } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
@@ -142,6 +143,15 @@ const CreateCategoryPage = () => {
         });
       }
 
+      // Opened from the product form's "+" button: close this tab so the user is
+      // back on the product form (it reloads categories when it gets focus).
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('from') === 'product') {
+        toast.success('Category added. Go back to the product tab.');
+        window.close();
+        // Some browsers refuse to close the tab; go to the list instead.
+        setTimeout(() => router.push('/admin/products/categories'), 400);
+        return;
+      }
       router.push('/admin/products/categories');
     } catch (e) {
       console.error('Failed to create category', e);

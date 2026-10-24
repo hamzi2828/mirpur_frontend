@@ -8,6 +8,7 @@ import type { Product, ProductVariant } from "./AllProducts";
 import type { Category } from "./CategoriesTab";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
 import { productService, type ProductUI } from "../services/productService";
+import { categoryService } from "../services/categoryService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { useAccess } from "@/context/AccessContext";
 import { ChevronDown, Hash, Loader2 } from "lucide-react";
@@ -156,7 +157,7 @@ const VALID_TABS: TabKey[] = ["content", "variant", "related"];
 export default function ProductForm({
   mode,
   initialData,
-  categories,
+  categories: categoriesProp,
   colorOptions,
   sizeOptions,
   guidelines = [],
@@ -166,6 +167,35 @@ export default function ProductForm({
   onManageAttributes
 }: ProductFormProps) {
   const { currency } = useCurrency();
+  // Categories can be reloaded here after one is added in another tab ("+" button).
+  const [categories, setCategories] = useState<Category[]>(categoriesProp);
+  useEffect(() => setCategories(categoriesProp), [categoriesProp]);
+  const categoriesRef = useRef<Category[]>(categoriesProp);
+  categoriesRef.current = categories;
+  const waitingForCategoryRef = useRef(false);
+  useEffect(() => {
+    const onFocus = async () => {
+      if (!waitingForCategoryRef.current) return;
+      waitingForCategoryRef.current = false;
+      try {
+        const fresh = ((await categoryService.listCategories()) as unknown as Category[]).filter(
+          (c) => c.active !== false
+        );
+        const known = new Set(categoriesRef.current.map((c) => c.name));
+        const added = fresh.filter((c) => !c.parentId && !known.has(c.name));
+        setCategories(fresh);
+        // Pick the new main category when none is chosen yet.
+        if (added.length === 1) {
+          setForm((prev) => (prev.category ? prev : { ...prev, category: added[0].name }));
+          toast.success(`Category "${added[0].name}" added`);
+        }
+      } catch {
+        toast.error("Could not reload categories");
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -1265,9 +1295,26 @@ export default function ProductForm({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    {access.can("product_categories", "create") && (
+                      <a
+                        href="/admin/products/categories/create?from=product"
+                        target="_blank"
+                        rel="noopener"
+                        onClick={() => {
+                          waitingForCategoryRef.current = true;
+                        }}
+                        title="Add a new category (opens in a new tab, your product form stays here)"
+                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700 hover:border-gray-900 hover:text-gray-900"
+                      >
+                        <FiPlus className="h-3.5 w-3.5" />
+                        Add
+                      </a>
+                    )}
+                  </div>
                   <div className="relative" ref={categoryDropdownRef}>
                     <div
                       className={`flex items-center justify-between w-full rounded-lg border px-3 py-2.5 cursor-pointer transition-all duration-200 ${
