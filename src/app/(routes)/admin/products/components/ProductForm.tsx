@@ -1587,7 +1587,8 @@ export default function ProductForm({
                   </label>
                   {(() => {
                     // Box / batch mode: stock is calculated in "Packaging & Stock" below
-                    const stockLocked = isVariant || computedStock(packaging) !== null;
+                    // Edit: stock is only added from Products -> Stock (kept in the stock history).
+                    const stockLocked = mode === "edit" || isVariant || computedStock(packaging) !== null;
                     return (
                       <>
                         <input
@@ -1600,18 +1601,21 @@ export default function ProductForm({
                               ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
                               : 'text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
                           }`}
-                          value={isVariant ? 0 : form.stock}
+                          value={isVariant && mode !== "edit" ? 0 : isVariant ? savedStock : form.stock}
                           onChange={(e) => setField("stock", Number(e.target.value))}
                         />
                         {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
-                        {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
-                        {!isVariant && stockLocked && (
+                        {mode === "edit" ? (
+                          <p className="mt-1 text-xs text-gray-500">
+                            To add stock use <strong>Products → Stock → Add stock</strong>
+                          </p>
+                        ) : isVariant ? (
+                          <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>
+                        ) : null}
+                        {mode !== "edit" && !isVariant && stockLocked && (
                           <p className="mt-1 text-xs text-gray-500">
                             {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes below"}
                           </p>
-                        )}
-                        {!isVariant && !stockLocked && mode === "edit" && (
-                          <p className="mt-1 text-xs text-gray-500">Pieces in the branch you are working in</p>
                         )}
                       </>
                     );
@@ -2273,14 +2277,20 @@ export default function ProductForm({
                                   type="number"
                                   min="0"
                                   value={variant.stock || ""}
-                                  disabled={hasBatches}
-                                  title={hasBatches ? "Stock comes from this variant's batches" : undefined}
+                                  disabled={hasBatches || mode === "edit"}
+                                  title={
+                                    mode === "edit"
+                                      ? "Add stock from Products → Stock → Add stock"
+                                      : hasBatches
+                                      ? "Stock comes from this variant's batches"
+                                      : undefined
+                                  }
                                   onChange={(e) => {
                                     const newVariants = [...(form.variants as ProductVariant[] || [])];
                                     newVariants[index] = { ...variant, stock: Number(e.target.value) };
                                     setField("variants", newVariants);
                                   }}
-                                  className={`w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm ${hasBatches ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+                                  className={`w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm ${hasBatches || mode === "edit" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
                                 />
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap">

@@ -146,7 +146,7 @@ export default function PackagingStockCard({
               />
               {errors.piecesPerBox && <p className="mt-1 text-xs text-red-600">{errors.piecesPerBox}</p>}
             </div>
-            {!value.trackBatches && (
+            {!value.trackBatches && mode !== "edit" && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Boxes in stock</label>
@@ -178,10 +178,14 @@ export default function PackagingStockCard({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Total stock</label>
               <div className="flex h-[38px] items-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900">
-                {value.trackBatches ? batchTotal : boxTotal} pieces
+                {mode === "edit" && !value.trackBatches ? savedStock : value.trackBatches ? batchTotal : boxTotal} pieces
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                {value.trackBatches ? "From the batches below" : `${Number(value.boxes) || 0} × ${ppb} + ${Number(value.loosePieces) || 0}`}
+                {mode === "edit"
+                  ? "Add stock from Products → Stock → Add stock"
+                  : value.trackBatches
+                  ? "From the batches below"
+                  : `${Number(value.boxes) || 0} × ${ppb} + ${Number(value.loosePieces) || 0}`}
               </p>
             </div>
           </div>
