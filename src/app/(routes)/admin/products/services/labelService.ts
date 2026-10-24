@@ -41,6 +41,8 @@ export interface LabelUnit {
   printCode: string | null;
   price: number;
   regularPrice: number;
+  /** cost per piece (null = not set) */
+  costPrice: number | null;
   stock: number;
   barcodes: { code: string; qty: number; label: string }[];
   fullBoxCode: string | null;
@@ -81,6 +83,9 @@ export interface ReceiveStockBody {
   batch?: { costPrice?: number; expiryDate?: string; note?: string };
   /** Shown in the stock history (e.g. supplier name or bill no.) */
   note?: string;
+  /** New prices per piece; when different they update the product. */
+  salePrice?: number;
+  costPrice?: number;
 }
 
 export interface ReceiveStockResult {

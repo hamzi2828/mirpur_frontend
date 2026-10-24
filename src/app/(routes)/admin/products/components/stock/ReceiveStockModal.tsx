@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CircleAlert, CircleCheck, Info, Layers, Loader2, PackagePlus, Printer, RefreshCw, X } from 'lucide-react';
+import { useCurrency } from '@/context/CurrencyContext';
 import {
   labelService,
   errorMessage,
@@ -45,6 +46,10 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
   const [costPrice, setCostPrice] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [note, setNote] = useState('');
+  // Prices per piece for this delivery; prefilled from the product, saved to it when changed.
+  const [salePrice, setSalePrice] = useState('');
+  const [pricesChanged, setPricesChanged] = useState(false);
+  const { currency } = useCurrency();
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +108,19 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
   const totalPieces = boxMode ? toInt(boxes) * ppb + toInt(loose) : toInt(quantity);
   const name = data?.product.name || productName || 'Product';
 
+  // Fill the price boxes with the chosen item's current prices.
+  useEffect(() => {
+    if (!unit) return;
+    setSalePrice(unit.price ? String(unit.price) : '');
+    setCostPrice(unit.costPrice != null ? String(unit.costPrice) : '');
+  }, [unit]);
+  const priceNum = (v: string) => (v.trim() === '' ? undefined : Number(v));
+  const newSale = priceNum(salePrice);
+  const newCost = priceNum(costPrice);
+  const saleChanged = !!unit && newSale !== undefined && newSale !== unit.price;
+  const costChanged = !!unit && newCost !== undefined && newCost !== (unit.costPrice ?? undefined);
+  const lossWarning = newSale !== undefined && newCost !== undefined && newCost > newSale;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (savingRef.current) return;
@@ -116,8 +134,14 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
       setError(boxMode ? 'Enter how many boxes (or loose pieces) you received.' : 'Enter how many pieces you received.');
       return;
     }
+    if ((newSale !== undefined && !(newSale >= 0)) || (newCost !== undefined && !(newCost >= 0))) {
+      setError('Prices must be 0 or more.');
+      return;
+    }
     const body: ReceiveStockBody = {};
     if (unit?.variantId) body.variantId = unit.variantId;
+    if (newSale !== undefined) body.salePrice = newSale;
+    if (newCost !== undefined) body.costPrice = newCost;
     if (boxMode) {
       body.boxes = toInt(boxes);
       body.loosePieces = toInt(loose);
@@ -137,6 +161,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
     setSaving(true);
     try {
       const r = await labelService.receiveStock(productId, body);
+      setPricesChanged(saleChanged || costChanged);
       setLastMode(boxMode ? 'boxes' : 'pieces');
       setResult(r);
     } catch (err) {
@@ -217,6 +242,13 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                   Added {result.received} piece{result.received === 1 ? '' : 's'}
                   {result.branchName ? ` to ${result.branchName}` : ''}.
                 </p>
+                {pricesChanged && (
+                  <p className="mt-0.5">
+                    Prices updated: sale {currency.symbol}
+                    {newSale ?? '-'}, cost {currency.symbol}
+                    {newCost ?? '-'} per piece.
+                  </p>
+                )}
                 {result.batch && (
                   <p className="mt-0.5">
                     New batch <span className="font-mono font-semibold">{result.batch.batchNo}</span>. Its stickers have
@@ -274,6 +306,63 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                 Now in stock: <strong className="text-gray-800">{unit.stock} pieces</strong>
                 {ppb > 1 && ` (box of ${ppb})`}
               </p>
+            )}
+
+            {/* Prices per piece (before the quantity) */}
+            {unit && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Cost price per piece ({currency.symbol})
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      inputMode="decimal"
+                      value={costPrice}
+                      onChange={(e) => setCostPrice(e.target.value)}
+                      className={`${inputCls} ${costChanged ? 'border-amber-400 ring-1 ring-amber-300' : ''}`}
+                      placeholder="0"
+                    />
+                    {costChanged && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Was {unit.costPrice != null ? `${currency.symbol}${unit.costPrice}` : 'not set'}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Sale price per piece ({currency.symbol})
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      inputMode="decimal"
+                      value={salePrice}
+                      onChange={(e) => setSalePrice(e.target.value)}
+                      className={`${inputCls} ${saleChanged ? 'border-amber-400 ring-1 ring-amber-300' : ''}`}
+                      placeholder="0"
+                    />
+                    {saleChanged && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Was {currency.symbol}
+                        {unit.price}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {lossWarning && (
+                  <p className="mt-2 text-xs font-medium text-red-600">Cost price is higher than the sale price.</p>
+                )}
+                <p className="mt-2 text-xs text-gray-500">
+                  {saleChanged || costChanged
+                    ? 'The new price will be saved on the product when you add the stock.'
+                    : 'Change a price here if this delivery came at a different price.'}
+                </p>
+              </div>
             )}
 
             {/* Mode */}
@@ -382,18 +471,6 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
               </label>
               {batchOn && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700">Cost price (optional)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="any"
-                      value={costPrice}
-                      onChange={(e) => setCostPrice(e.target.value)}
-                      className={inputCls}
-                      placeholder="Per piece"
-                    />
-                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700">Expiry date (optional)</label>
                     <input
