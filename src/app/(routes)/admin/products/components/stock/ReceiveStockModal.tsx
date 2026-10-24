@@ -132,6 +132,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
       if (note.trim()) batch.note = note.trim();
       body.batch = batch;
     }
+    if (note.trim()) body.note = note.trim();
     savingRef.current = true;
     setSaving(true);
     try {
@@ -339,6 +340,21 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                   placeholder="e.g. 24"
                   autoFocus
                 />
+              </div>
+            )}
+
+            {!batchOn && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Note (optional)</label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className={inputCls}
+                  placeholder="e.g. supplier name or bill no."
+                  maxLength={300}
+                />
+                <p className="mt-1 text-xs text-gray-500">Shown in the stock history.</p>
               </div>
             )}
 

@@ -79,6 +79,8 @@ export interface ReceiveStockBody {
   boxes?: number;
   loosePieces?: number;
   batch?: { costPrice?: number; expiryDate?: string; note?: string };
+  /** Shown in the stock history (e.g. supplier name or bill no.) */
+  note?: string;
 }
 
 export interface ReceiveStockResult {

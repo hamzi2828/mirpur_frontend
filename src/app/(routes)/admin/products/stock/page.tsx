@@ -3,9 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { RefreshCw, Package, AlertTriangle, Search, ShoppingCart, Printer, PackagePlus } from 'lucide-react';
+import { RefreshCw, Package, AlertTriangle, Search, ShoppingCart, Printer, PackagePlus, History, X } from 'lucide-react';
 import { productService } from '../services/productService';
 import ReceiveStockModal from '../components/stock/ReceiveStockModal';
+import StockHistoryTable from '../components/stock/StockHistoryTable';
+import PickProductModal from '../components/stock/PickProductModal';
+import { useAccess } from '@/context/AccessContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import { useCodeSummaries } from '../components/stock/useCodeSummaries';
 import { getPOSOrders } from '../../pos/services/posOrderService';
 import toast from 'react-hot-toast';
@@ -69,6 +73,13 @@ const StockPage = () => {
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
   const [receiveFor, setReceiveFor] = useState<{ id: string; name: string; variantId?: string } | null>(null);
   const codeSummaries = useCodeSummaries(products);
+  const { can } = useAccess();
+  const { formatPrice } = useCurrency();
+  const canReceive = can('stock_receive', 'create');
+  const [tab, setTab] = useState<'levels' | 'history'>('levels');
+  const [picking, setPicking] = useState(false);
+  const [historyFor, setHistoryFor] = useState<{ id: string; name: string; variantId?: string; label?: string } | null>(null);
+  const [historyReload, setHistoryReload] = useState(0);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -240,11 +251,21 @@ const StockPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Stock Overview</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Stock</h1>
           <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-            View all product and variant stock levels
+            Stock levels, add new stock, and the history of every stock change
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        {canReceive && (
+          <button
+            onClick={() => setPicking(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c] shadow-sm"
+          >
+            <PackagePlus className="h-4 w-4" />
+            Add stock
+          </button>
+        )}
         <button
           onClick={handleRefresh}
           disabled={refreshing}
@@ -254,8 +275,31 @@ const StockPage = () => {
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
         </button>
+        </div>
       </div>
 
+      {/* Tabs */}
+      <div className="inline-flex rounded-lg bg-gray-100 p-1">
+        {([
+          ['levels', 'Stock levels'],
+          ['history', 'Stock history'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              tab === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'history' ? (
+        <StockHistoryTable reloadKey={historyReload} />
+      ) : (
+      <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4">
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-2 sm:p-4">
@@ -470,11 +514,11 @@ const StockPage = () => {
                       <div className="flex flex-col items-end">
                         {row.discountedPrice ? (
                           <>
-                            <span className="text-sm font-medium text-gray-900">${row.discountedPrice.toFixed(2)}</span>
-                            <span className="text-xs text-gray-400 line-through">${row.price.toFixed(2)}</span>
+                            <span className="text-sm font-medium text-gray-900">{formatPrice(row.discountedPrice)}</span>
+                            <span className="text-xs text-gray-400 line-through">{formatPrice(row.price)}</span>
                           </>
                         ) : (
-                          <span className="text-sm font-medium text-gray-900">${row.price.toFixed(2)}</span>
+                          <span className="text-sm font-medium text-gray-900">{formatPrice(row.price)}</span>
                         )}
                       </div>
                     </td>
@@ -503,13 +547,30 @@ const StockPage = () => {
                           <Printer className="h-3.5 w-3.5" />
                           Stickers
                         </Link>
+                        {canReceive && (
+                          <button
+                            onClick={() => setReceiveFor({ id: row.productId, name: row.productName, variantId: row.variantId })}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            title="Add new stock (a delivery)"
+                          >
+                            <PackagePlus className="h-3.5 w-3.5" />
+                            Add stock
+                          </button>
+                        )}
                         <button
-                          onClick={() => setReceiveFor({ id: row.productId, name: row.productName, variantId: row.variantId })}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                          title="Add new stock (a delivery)"
+                          onClick={() =>
+                            setHistoryFor({
+                              id: row.productId,
+                              name: row.productName,
+                              variantId: row.variantId,
+                              label: [row.color, row.size].filter(Boolean).join(' / '),
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                          title="See every stock change of this item, with dates"
                         >
-                          <PackagePlus className="h-3.5 w-3.5" />
-                          Receive stock
+                          <History className="h-3.5 w-3.5" />
+                          History
                         </button>
                       </div>
                     </td>
@@ -527,6 +588,51 @@ const StockPage = () => {
           Showing {filteredRows.length} of {totalItems} items
         </div>
       )}
+      </>
+      )}
+
+      {picking && (
+        <PickProductModal
+          onClose={() => setPicking(false)}
+          onPick={(p) => {
+            setPicking(false);
+            setReceiveFor({ id: p.id, name: p.name });
+          }}
+        />
+      )}
+
+      {historyFor && (
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 p-3 sm:p-6" onClick={() => setHistoryFor(null)}>
+          <div className="w-full max-w-5xl max-h-[92vh] overflow-y-auto bg-white rounded-xl shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-white">
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-gray-900">Stock history</h3>
+                <p className="text-sm text-gray-500 truncate">
+                  {historyFor.name}
+                  {historyFor.label ? ` · ${historyFor.label}` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {canReceive && (
+                  <button
+                    onClick={() => setReceiveFor({ id: historyFor.id, name: historyFor.name, variantId: historyFor.variantId })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-[#dc2626] rounded-lg hover:bg-[#b91c1c]"
+                  >
+                    <PackagePlus className="h-4 w-4" />
+                    Add stock
+                  </button>
+                )}
+                <button onClick={() => setHistoryFor(null)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg" aria-label="Close">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <StockHistoryTable productId={historyFor.id} variantId={historyFor.variantId} reloadKey={historyReload} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {receiveFor && (
         <ReceiveStockModal
@@ -535,7 +641,10 @@ const StockPage = () => {
           initialVariantId={receiveFor.variantId}
           onClose={(changed) => {
             setReceiveFor(null);
-            if (changed) loadProducts();
+            if (changed) {
+              loadProducts();
+              setHistoryReload((n) => n + 1);
+            }
           }}
         />
       )}

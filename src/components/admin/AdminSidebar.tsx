@@ -201,7 +201,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
   // System Settings Section
   const systemMenuItems: MenuItem[] = [
-    { name: 'Activity Log', path: '/admin/activity-log', icon: <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'activity_log' },
+    { name: 'Activity Log', path: '/admin/activity-log', icon: <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'activity_log', superOnly: true },
     { name: 'Settings', path: '/admin/settings', icon: <Settings className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'settings' },
   ];
 

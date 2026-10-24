@@ -210,9 +210,50 @@ function timeAgo(dateStr: string) {
 function formatDetails(details: Record<string, unknown> | null) {
   if (!details) return null;
   return Object.entries(details)
-    .filter(([, v]) => v != null && v !== '')
+    .filter(([k, v]) => k !== 'changes' && v != null && v !== '' && typeof v !== 'object')
     .map(([k, v]) => `${k}: ${v}`)
     .join(' · ');
+}
+
+// Old -> new values saved with every update (details.changes, see backend helper/changeLog.js).
+interface ChangeField { field: string; from: unknown; to: unknown }
+interface ChangeRecord { model: string; id: string; label?: string; fields: ChangeField[] }
+
+const showValue = (v: unknown) => {
+  if (v === null || v === undefined || v === '') return '(empty)';
+  const s = typeof v === 'string' ? v : JSON.stringify(v);
+  return s.length > 80 ? `${s.slice(0, 80)}…` : s;
+};
+
+function ChangeList({ details }: { details: Record<string, unknown> | null }) {
+  const changes = (details && Array.isArray(details.changes) ? details.changes : []) as ChangeRecord[];
+  if (!changes.length) return null;
+  return (
+    <details className="mt-1 text-[11px] lg:text-xs">
+      <summary className="cursor-pointer text-blue-600 hover:text-blue-800 select-none">
+        {changes.reduce((n, c) => n + (c.fields?.length || 0), 0)} change(s)
+      </summary>
+      <div className="mt-1 space-y-1.5 max-w-[420px]">
+        {changes.map((c, i) => (
+          <div key={`${c.id}-${i}`} className="rounded border border-gray-200 bg-gray-50 px-2 py-1">
+            <p className="font-semibold text-gray-700">
+              {c.model}
+              {c.label ? `: ${c.label}` : ''}
+            </p>
+            <ul className="mt-0.5 space-y-0.5">
+              {(c.fields || []).map((f) => (
+                <li key={f.field} className="text-gray-600 break-words">
+                  <span className="font-mono text-gray-800">{f.field}</span>:{' '}
+                  <span className="text-red-600 line-through">{showValue(f.from)}</span>{' '}
+                  → <span className="text-green-700">{showValue(f.to)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 function formatMs(ms: number | null | undefined) {
@@ -705,7 +746,8 @@ function FeedTab() {
                         </div>
                       </td>
                       <td className="px-4 py-2.5 hidden lg:table-cell">
-                        <span className="text-[11px] lg:text-xs text-gray-400 truncate block max-w-[180px]">{detailStr || '—'}</span>
+                        <span className="text-[11px] lg:text-xs text-gray-400 truncate block max-w-[180px]">{detailStr || (log.details?.changes ? '' : '—')}</span>
+                        <ChangeList details={log.details} />
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={`text-[11px] lg:text-xs font-semibold ${speedClass(log.durationMs)}`}>
@@ -1001,7 +1043,8 @@ function RouteDrilldown({
                   <span className="text-xs lg:text-sm text-gray-500 font-mono truncate block max-w-[220px]">{log.path}</span>
                 </td>
                 <td className="px-4 py-2.5 hidden lg:table-cell">
-                  <span className="text-[11px] lg:text-xs text-gray-400 truncate block max-w-[220px]">{detailStr || '—'}</span>
+                  <span className="text-[11px] lg:text-xs text-gray-400 truncate block max-w-[220px]">{detailStr || (log.details?.changes ? '' : '—')}</span>
+                  <ChangeList details={log.details} />
                 </td>
                 <td className="px-4 py-2.5">
                   <span className={`text-[11px] lg:text-xs font-semibold ${speedClass(log.durationMs)}`}>
@@ -1290,6 +1333,7 @@ function UserDetailView({ userId, onBack }: { userId: string; onBack: () => void
                             </div>
                             <p className="text-[11px] lg:text-xs text-gray-500 font-mono truncate mt-0.5">{log.path}</p>
                             {detailStr && <p className="text-[11px] lg:text-xs text-gray-400 truncate">{detailStr}</p>}
+                            <ChangeList details={log.details} />
                           </div>
                         </div>
                       );
